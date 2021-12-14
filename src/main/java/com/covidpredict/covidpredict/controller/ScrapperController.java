@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
@@ -23,11 +24,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/*import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.TextProgressMonitor;*/
-
 @RestController
 @RequestMapping("/")
 public class ScrapperController {
@@ -36,7 +32,7 @@ public class ScrapperController {
             new ObjectMapper()
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     //@Value("${car.srcUrl}")
-    private static String srcUrlFirstHalf = "https://data.covid19india.org/v4/min/timeseries-";
+    private static String srcUrlFirstHalf = "https://api.covid19tracker.in/data/static/timeseries/";
     private static String srcUrlSecondHalf = ".min.json";
 
     private static Map<String,String> stateMap = new HashMap<String, String>() {{
@@ -76,56 +72,50 @@ public class ScrapperController {
         put("UP", "UttarPradesh");
         put("UT", "Uttarakhand");
         put("WB", "WestBengal");
-
-
     }};
 
 
 
     @GetMapping("covidpredict")
-    ResponseEntity covidpredict() throws IOException {
-        System.out.println("test");
-        //get units for each state
-        stateMap.forEach((stateCode, stateDesc) -> {
-            System.out.println("inside forEach " + stateMap.toString());
-            try {
-                List<String[]> dataList = getDataToBeAppended(stateCode, stateDesc);
-                // default all fields are enclosed in double quotes
-                // default separator is a comma
-                File fileName = getFileNameFromlocalRepo("C:\\Loga", stateDesc);
-                try (CSVWriter writer = new CSVWriter(new FileWriter(fileName, true))) {
-                    writer.writeAll(dataList);
+    ResponseEntity<String> covidpredict(@RequestParam String localDir) throws IOException {
+        {
+            //get units for each state
+            stateMap.forEach((stateCode, stateDesc) -> {
+                try {
+                    List<String[]> dataList = getDataToBeAppended(stateCode, stateDesc);
+                    File fileName = getFileNameFromlocalRepo(localDir, stateDesc);
+                    try (CSVWriter writer = new CSVWriter(new FileWriter(fileName, true))) {
+                        writer.writeAll(dataList);
+                    }
+                }catch(Exception e){
+                    e.printStackTrace();
                 }
-            }catch(Exception e){
-                e.printStackTrace();
-            }
-        });
-
-        ResponseEntity.accepted();
-        return new ResponseEntity<>(HttpStatus.OK);
+            });
+        }
+        return new ResponseEntity<String>("Success", HttpStatus.OK);
     }
 
-    public static void main(String[] args) throws IOException, JSONException/*, GitAPIException*/ {
-        System.out.println("test");
-        //get units for each state
-        stateMap.forEach((stateCode, stateDesc) -> {
-            System.out.println("inside forEach " + stateMap.toString());
-            try {
-                List<String[]> dataList = getDataToBeAppended(stateCode, stateDesc);
-                // default all fields are enclosed in double quotes
-                // default separator is a comma
-                File fileName = getFileNameFromlocalRepo("C:\\Loga", stateDesc);
-                try (CSVWriter writer = new CSVWriter(new FileWriter(fileName, true))) {
-                    writer.writeAll(dataList);
-                }
-            }catch(Exception e){
-                //return new ResponseEntity<>(HttpStatus.OK);
-            }
-        });
-
-
-
-    }
+//    public static void main(String[] args) throws IOException, JSONException/*, GitAPIException*/ {
+//        System.out.println("test");
+//        //get units for each state
+//        stateMap.forEach((stateCode, stateDesc) -> {
+//            System.out.println("inside forEach " + stateMap.toString());
+//            try {
+//                List<String[]> dataList = getDataToBeAppended(stateCode, stateDesc);
+//                // default all fields are enclosed in double quotes
+//                // default separator is a comma
+//                File fileName = getFileNameFromlocalRepo("C:\\Loga", stateDesc);
+//                try (CSVWriter writer = new CSVWriter(new FileWriter(fileName, true))) {
+//                    writer.writeAll(dataList);
+//                }
+//            }catch(Exception e){
+//                //return new ResponseEntity<>(HttpStatus.OK);
+//            }
+//        });
+//
+//
+//
+//    }
 
     private static File getFileNameFromlocalRepo(String s1, String s) {
         return new File(s1 + "//COVIDPredictDeploy//data_" + s + ".csv");
@@ -193,27 +183,7 @@ public class ScrapperController {
         }
 
         return dataList;
-        // adding header to csv
-        //String[] header = {"country", "other", "deceased", "recovered", "tested", "vaccinated1", "vaccinated2",};
-        //dataList.add(header);
-//        while (keys.hasNext()) {
-//            String key = (String) keys.next();
-//            System.out.println(key);
-//            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-//            Total total = objectMapper.readValue(json.getJSONObject(key).get("total").toString(), Total.class);
-//            System.out.println(total);
-//
-//
-//
-//            //
-//            String[] data = {key, String.valueOf(total.getOther()), String.valueOf(total.getDeceased()), String.valueOf(total.getRecovered()),
-//                    String.valueOf(total.getTested()), String.valueOf(total.getVaccinated1()), String.valueOf(total.getVaccinated2())};
-//
-//
-//            dataList.add(data);
-//
-//        }
-        //return dataList;
+
     }
 
 }
