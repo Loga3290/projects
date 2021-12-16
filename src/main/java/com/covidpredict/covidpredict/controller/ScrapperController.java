@@ -5,16 +5,19 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVWriter;
 import org.apache.commons.io.IOUtils;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.hssf.usermodel.HSSFWorkbookFactory;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
@@ -44,7 +47,6 @@ public class ScrapperController {
         put("CH", "chandigarh");
         put("CT", "chattisgarh");
         put("DN", "dadra");
-        put("DD", "damandiu");
         put("DL", "delhi");
         put("GA", "goa");
         put("GJ", "Gujarat");
@@ -76,46 +78,45 @@ public class ScrapperController {
 
 
 
-    @GetMapping("covidpredict")
+    /*@GetMapping("covidpredict")
     ResponseEntity<String> covidpredict(@RequestParam String localDir) throws IOException {
         {
             //get units for each state
             stateMap.forEach((stateCode, stateDesc) -> {
                 try {
+                    System.out.println(stateDesc + " ");
                     List<String[]> dataList = getDataToBeAppended(stateCode, stateDesc);
                     File fileName = getFileNameFromlocalRepo(localDir, stateDesc);
                     try (CSVWriter writer = new CSVWriter(new FileWriter(fileName, true))) {
                         writer.writeAll(dataList);
                     }
+                    System.out.println(stateDesc + " is completed");
                 }catch(Exception e){
                     e.printStackTrace();
                 }
             });
         }
         return new ResponseEntity<String>("Success", HttpStatus.OK);
-    }
+    }*/
 
-//    public static void main(String[] args) throws IOException, JSONException/*, GitAPIException*/ {
-//        System.out.println("test");
-//        //get units for each state
-//        stateMap.forEach((stateCode, stateDesc) -> {
-//            System.out.println("inside forEach " + stateMap.toString());
-//            try {
-//                List<String[]> dataList = getDataToBeAppended(stateCode, stateDesc);
-//                // default all fields are enclosed in double quotes
-//                // default separator is a comma
-//                File fileName = getFileNameFromlocalRepo("C:\\Loga", stateDesc);
-//                try (CSVWriter writer = new CSVWriter(new FileWriter(fileName, true))) {
-//                    writer.writeAll(dataList);
-//                }
-//            }catch(Exception e){
-//                //return new ResponseEntity<>(HttpStatus.OK);
-//            }
-//        });
-//
-//
-//
-//    }
+    public static void main(String[] args) throws IOException, JSONException/*, GitAPIException*/ {
+        stateMap.forEach((stateCode, stateDesc) -> {
+            try {
+
+                List<String[]> dataList = getDataToBeAppended(stateCode, stateDesc);
+                File fileName = getFileNameFromlocalRepo(args[0], stateDesc);
+                try (CSVWriter writer = new CSVWriter(new FileWriter(fileName))) {
+                    writer.writeAll(dataList);
+               }
+                System.out.println(stateDesc + " is completed");
+            }catch(Exception e){
+                e.printStackTrace();
+            }
+        });
+
+
+
+    }
 
     private static File getFileNameFromlocalRepo(String s1, String s) {
         return new File(s1 + "//COVIDPredictDeploy//data_" + s + ".csv");
@@ -151,36 +152,64 @@ public class ScrapperController {
      * @param stateDesc
      */
     private static List<String[]> getDataToBeAppended(String stateCode, String stateDesc) throws JSONException, IOException {
-        System.out.println("inside get Data to be appended");
 
-        String[] header = {"date", "new_diagnoses", "new_tests", "new_deaths"};
+        String[] header = {"state", "district", "date", "new_diagnoses", "new_tests", "new_deaths"};
         JSONObject json = new JSONObject(IOUtils.toString(new URL(srcUrlFirstHalf + stateCode + srcUrlSecondHalf), StandardCharsets.UTF_8));
-        JSONObject json1 = (JSONObject) json.getJSONObject(stateCode).get("dates");
-        List<LocalDate> keySet = json1.keySet().stream().map(s ->
-                LocalDate.parse(s, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-        ).collect(Collectors.toList());
-        Collections.sort(keySet);
-        List<LocalDate> keySetSubList = keySet.subList(keySet.size() - 91, keySet.size());
         List<String[]> dataList = new ArrayList<>();
+        JSONObject districts = (JSONObject) json.getJSONObject(stateCode).get("districts");
         dataList.add(header);
-        Total totalFirst = objectMapper.readValue(json1.getJSONObject( keySetSubList.get(0).toString() ).get("total").toString(), Total.class);
-        Integer confirmedDateB4 = totalFirst.getConfirmed();
-        Integer testedB4 = totalFirst.getTested();
-        Integer deceasedB4 = totalFirst.getDeceased();
-        keySetSubList.remove(0);
-        for (LocalDate key : keySetSubList) {
-            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            Total total = objectMapper.readValue(json1.getJSONObject( key.toString() ).get("total").toString(), Total.class);
-            //Meta meta = objectMapper.readValue(json.getJSONObject(key).get("meta").toString(), Meta.class);
+        for(String district : districts.keySet()){
+            JSONObject json1 = (JSONObject) districts.getJSONObject(district).get("dates");
+            List<LocalDate> keySet = json1.keySet().stream().map(s ->
+                    LocalDate.parse(s, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            ).collect(Collectors.toList());
+            Collections.sort(keySet);
+            List<LocalDate> keySetSubList = keySet.subList(keySet.size() > 91 ? keySet.size() - 91: 0, keySet.size());
 
-            String[] data = {String.valueOf(key), String.valueOf(total.getConfirmed() - confirmedDateB4),
-                    String.valueOf(total.getTested() - testedB4),
-                    String.valueOf(total.getDeceased() - deceasedB4)};
-            confirmedDateB4 = total.getConfirmed();
-            testedB4 = total.getTested();
-            deceasedB4 = total.getDeceased();
-            dataList.add(data);
+            Total totalFirst = objectMapper.readValue(json1.getJSONObject( keySetSubList.get(0).toString() ).get("total").toString(), Total.class);
+            Integer confirmedDateB4 = totalFirst.getConfirmed();
+            Integer testedB4 = totalFirst.getTested();
+            Integer deceasedB4 = totalFirst.getDeceased();
+            keySetSubList.remove(0);
+            for (LocalDate key : keySetSubList) {
+                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                Total total = objectMapper.readValue(json1.getJSONObject( key.toString() ).get("total").toString(), Total.class);
+
+                String[] data = {stateDesc, district, String.valueOf(key), String.valueOf(total.getConfirmed() - confirmedDateB4),
+                        String.valueOf(total.getTested() - testedB4),
+                        String.valueOf(total.getDeceased() - deceasedB4)};
+                confirmedDateB4 = total.getConfirmed();
+                testedB4 = total.getTested();
+                deceasedB4 = total.getDeceased();
+                dataList.add(data);
+            }
         }
+        //State data
+            JSONObject json1 = (JSONObject) json.getJSONObject(stateCode).get("dates");
+            List<LocalDate> keySet = json1.keySet().stream().map(s ->
+                    LocalDate.parse(s, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            ).collect(Collectors.toList());
+            Collections.sort(keySet);
+            List<LocalDate> keySetSubList = keySet.subList(keySet.size() > 91 ? keySet.size() - 91: 0, keySet.size());
+
+            Total totalFirst = objectMapper.readValue(json1.getJSONObject( keySetSubList.get(0).toString() ).get("total").toString(), Total.class);
+            Integer confirmedDateB4 = totalFirst.getConfirmed();
+            Integer testedB4 = totalFirst.getTested();
+            Integer deceasedB4 = totalFirst.getDeceased();
+            keySetSubList.remove(0);
+            for (LocalDate key : keySetSubList) {
+                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                Total total = objectMapper.readValue(json1.getJSONObject( key.toString() ).get("total").toString(), Total.class);
+
+                String[] data = {stateDesc, stateDesc, String.valueOf(key), String.valueOf(total.getConfirmed() - confirmedDateB4),
+                        String.valueOf(total.getTested() - testedB4),
+                        String.valueOf(total.getDeceased() - deceasedB4)};
+                confirmedDateB4 = total.getConfirmed();
+                testedB4 = total.getTested();
+                deceasedB4 = total.getDeceased();
+                dataList.add(data);
+            }
+        //}
 
         return dataList;
 
